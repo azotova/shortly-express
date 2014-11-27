@@ -2,7 +2,8 @@ var express = require('express');
 var util = require('./lib/utility');
 var partials = require('express-partials');
 var bodyParser = require('body-parser');
-
+var bcrypt = require('bcrypt-nodejs');
+var session = require('express-session');
 
 var db = require('./app/config');
 var Users = require('./app/collections/users');
@@ -22,25 +23,32 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(__dirname + '/public'));
 
+//setup sessions
 
-app.get('/', 
+app.use(session({
+  secret: 'dog is boring',
+  resave: false,
+  saveUninitialized: true
+}));
+
+app.get('/',
 function(req, res) {
   res.render('index');
 });
 
-app.get('/create', 
+app.get('/create',
 function(req, res) {
   res.render('index');
 });
 
-app.get('/links', 
+app.get('/links',
 function(req, res) {
   Links.reset().fetch().then(function(links) {
     res.send(200, links.models);
   });
 });
 
-app.post('/links', 
+app.post('/links',
 function(req, res) {
   var uri = req.body.url;
 
@@ -77,7 +85,60 @@ function(req, res) {
 /************************************************************/
 // Write your authentication routes here
 /************************************************************/
+//login
 
+app.get('/signup', function(req,res){
+  res.render('signup');
+});
+
+app.post('/signup', function(req, res) {
+  var username = req.body.username;
+  var password = req.body.password;
+  console.log("userPass", username, password);
+  var salt = bcrypt.genSaltSync();
+  var hashedPassw = bcrypt.hashSync(password, salt);
+  console.log("encrypted", salt, hashedPassw);
+  new User({username: username}).fetch().then(function(found){
+    if (found) {
+      console.log('found', found);
+      res.redirect('/login');
+    } else {
+      var user = new User ({
+        username: username,
+        password: hashedPassw,
+        salt: salt
+      });
+
+      user.save().then(function(newUser){
+        Users.add(newUser);
+        res.send(200, "Added a new user");
+      })
+    }
+  })
+
+
+  // res.send(201, "Sent")
+});
+
+
+app.get('/login', function(req,res){
+  res.render('login');
+});
+
+app.post('/login', function(req, res) {
+  var username = req.body.username;
+  var password = req.body.password;
+  console.log("userPass", username, password);
+  new User({username: username}).fetch().then(function(found){
+    if (found) {
+      var encrypted = found.attributes.password;
+      var match = bcrypt.compareSync(password, encrypted);
+      //here is where we actually do stuff
+      res.send(match);
+    }
+  });
+  //res.send(201, "Sent")
+});
 
 
 /************************************************************/
