@@ -32,16 +32,19 @@ app.use(session({
 }));
 
 app.get('/',
+  util.restrict,
 function(req, res) {
   res.render('index');
 });
 
 app.get('/create',
+  util.restrict,
 function(req, res) {
   res.render('index');
 });
 
 app.get('/links',
+  util.restrict,
 function(req, res) {
   Links.reset().fetch().then(function(links) {
     res.send(200, links.models);
@@ -49,6 +52,7 @@ function(req, res) {
 });
 
 app.post('/links',
+  util.restrict,
 function(req, res) {
   var uri = req.body.url;
 
@@ -94,13 +98,10 @@ app.get('/signup', function(req,res){
 app.post('/signup', function(req, res) {
   var username = req.body.username;
   var password = req.body.password;
-  console.log("userPass", username, password);
   var salt = bcrypt.genSaltSync();
   var hashedPassw = bcrypt.hashSync(password, salt);
-  console.log("encrypted", salt, hashedPassw);
   new User({username: username}).fetch().then(function(found){
     if (found) {
-      console.log('found', found);
       res.redirect('/login');
     } else {
       var user = new User ({
@@ -111,13 +112,10 @@ app.post('/signup', function(req, res) {
 
       user.save().then(function(newUser){
         Users.add(newUser);
-        res.send(200, "Added a new user");
+        util.createSession (req, res, username);
       })
     }
   })
-
-
-  // res.send(201, "Sent")
 });
 
 
@@ -128,18 +126,25 @@ app.get('/login', function(req,res){
 app.post('/login', function(req, res) {
   var username = req.body.username;
   var password = req.body.password;
-  console.log("userPass", username, password);
   new User({username: username}).fetch().then(function(found){
     if (found) {
       var encrypted = found.attributes.password;
       var match = bcrypt.compareSync(password, encrypted);
-      //here is where we actually do stuff
-      res.send(match);
+      if (!match) {
+        res.redirect('/login');
+      }
+      util.createSession (req, res, username);
+    } else {
+      res.redirect('/login');
     }
   });
-  //res.send(201, "Sent")
 });
 
+app.get('/logout', function(req, res){
+  req.session.destroy(function(){
+    res.redirect('/login');
+  });
+});
 
 /************************************************************/
 // Handle the wildcard route last - if all other routes fail
